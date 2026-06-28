@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>情感陪护虚拟数字人</title>
+    <style>
+        /* ── Reset & Base ─────────────────────────────────── */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        :root {
+            --primary: #6C63FF;
+            --primary-light: #8B83FF;
+            --bg: #F0F2F5;
+            --card: #FFFFFF;
+            --text: #333333;
+            --text-light: #888888;
+            --radius: 16px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.08);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                         "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Layout ──────────────────────────────────────── */
+        .app-container { display:flex; height:100vh; }
+
+        /* ── Sidebar ─────────────────────────────────────── */
+        .sidebar {
+            width:280px;
+            background:linear-gradient(180deg,#6C63FF 0%,#4A47A3 100%);
+            color:#fff;
+            display:flex; flex-direction:column; flex-shrink:0;
+        }
+        .sidebar-header { padding:24px 20px 16px; border-bottom:1px solid rgba(255,255,255,0.15); }
+        .sidebar-header h2 { font-size:18px; font-weight:600; }
+        .sidebar-header p { font-size:12px; opacity:0.7; margin-top:4px; }
+        .new-chat-btn {
+            margin:16px 20px; padding:10px 0;
+            background:rgba(255,255,255,0.15); border:1px dashed rgba(255,255,255,0.4);
+            border-radius:12px; color:#fff; font-size:14px; cursor:pointer;
+            text-align:center; transition:all 0.2s;
+        }
+        .new-chat-btn:hover { background:rgba(255,255,255,0.25); }
+        .conv-list { flex:1; overflow-y:auto; padding:0 12px; }
+        .conv-item {
+            padding:12px 14px; border-radius:10px; cursor:pointer;
+            margin-bottom:4px; display:flex; justify-content:space-between;
+            align-items:center; font-size:13px; transition:background 0.2s;
+        }
+        .conv-item:hover { background:rgba(255,255,255,0.12); }
+        .conv-item.active { background:rgba(255,255,255,0.2); }
+        .conv-item .title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .conv-item .del-btn {
+            opacity:0; background:none; border:none; color:rgba(255,255,255,0.5);
+            cursor:pointer; font-size:16px; padding:0 4px; transition:opacity 0.2s;
+        }
+        .conv-item:hover .del-btn { opacity:1; }
+        .conv-item .del-btn:hover { color:#ff6b6b; }
+
+        /* ── Sidebar Settings ─────────────────────────────── */
+        .sidebar-settings { padding:16px 20px; border-top:1px solid rgba(255,255,255,0.15); }
+        .sidebar-settings label { font-size:12px; opacity:0.8; display:block; margin-bottom:6px; }
+        .persona-row { display:flex; gap:6px; }
+        .persona-btn {
+            flex:1; padding:6px 0; border-radius:8px;
+            border:1px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.08);
+            color:#fff; font-size:12px; cursor:pointer; transition:all 0.2s;
+        }
+        .persona-btn.active { background:rgba(255,255,255,0.3); border-color:rgba(255,255,255,0.6); }
+        .persona-btn:hover { background:rgba(255,255,255,0.2); }
+        .nickname-input {
+            width:100%; padding:6px 10px; border-radius:8px;
+            border:1px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.1);
+            color:#fff; font-size:13px; margin-top:8px; outline:none;
+        }
+        .nickname-input::placeholder { color:rgba(255,255,255,0.4); }
+
+        /* ── Main Area ────────────────────────────────────── */
+        .main-area { flex:1; display:flex; flex-direction:column; min-width:0; }
+
+        /* ── Top Bar ──────────────────────────────────────── */
+        .top-bar {
+            height:60px; background:var(--card); display:flex; align-items:center;
+            padding:0 24px; box-shadow:0 1px 4px rgba(0,0,0,0.06); flex-shrink:0;
+        }
+        .top-bar .emotion-badge {
+            display:inline-flex; align-items:center; gap:6px;
+            padding:4px 14px; border-radius:20px; font-size:13px;
+            font-weight:500; margin-left:auto; transition:all 0.4s;
+        }
+        .export-btn {
+            background:none; border:1px solid #ddd; border-radius:8px;
+            padding:6px 12px; font-size:12px; color:var(--text-light);
+            cursor:pointer; margin-left:12px; transition:all 0.2s;
+        }
+        .export-btn:hover { border-color:var(--primary); color:var(--primary); }
+
+        /* ── Chat Content ────────────────────────────────── */
+        .chat-content { flex:1; display:flex; overflow:hidden; }
+
+        /* ── Virtual Human Panel ──────────────────────────── */
+        .avatar-panel {
+            width:320px; background:var(--card); display:flex; flex-direction:column;
+            align-items:center; justify-content:center; padding:24px;
+            flex-shrink:0; border-right:1px solid #eee; transition:background 0.5s;
+        }
+        .avatar-panel .emotion-label { font-size:15px; font-weight:600; margin-top:16px; transition:color 0.3s; }
+        .avatar-panel .persona-name { font-size:13px; color:var(--text-light); margin-top:4px; }
+
+        /* ═══════════════════════════════════════════════════
+           CSS Virtual Human — detailed character
+        ═══════════════════════════════════════════════════ */
+        .character { position:relative; width:200px; height:280px; }
+
+        /* ── Hair ─────────────────────────────────────────── */
+        .hair {
+            position:absolute; top:0; left:50%; transform:translateX(-50%);
+            width:170px; height:100px; background:#5D4037;
+            border-radius:85px 85px 0 0; z-index:2;
+        }
+        .hair::after {
+            content:""; position:absolute; bottom:-8px; left:-10px;
+            width:190px; height:40px; background:#5D4037;
+            border-radius:0 0 95px 95px;
+        }
+        .bangs {
+            position:absolute; top:55px; left:50%; transform:translateX(-50%);
+            width:150px; height:40px; z-index:5; overflow:hidden;
+        }
+        .bangs::before {
+            content:""; position:absolute; top:0; left:10px;
+            width:40px; height:50px; background:#5D4037;
+            border-radius:0 0 20px 20px; transform:rotate(-5deg);
+        }
+        .bangs::after {
+            content:""; position:absolute; top:0; right:10px;
+            width:40px; height:50px; background:#5D4037;
+            border-radius:0 0 20px 20px; transform:rotate(5deg);
+        }
+
+        /* ── Ears ─────────────────────────────────────────── */
+        .ear {
+            position:absolute; top:105px; width:22px; height:30px;
+            background:#FFE0BD; border-radius:11px; z-index:1;
+        }
+        .ear.left { left:8px; }
+        .ear.right { right:8px; }
+        .ear::after {
+            content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%);
+            width:12px; height:16px; background:#FFD0A0; border-radius:6px;
+        }
+
+        /* ── Head / Face ──────────────────────────────────── */
+        .face {
+            position:absolute; top:45px; left:50%; transform:translateX(-50%);
+            width:150px; height:170px; background:#FFECD2;
+            border-radius:75px 75px 65px 65px; z-index:3;
+            box-shadow:0 4px 20px rgba(0,0,0,0.08);
+            transition:background 0.5s;
+            animation:float 3s ease-in-out infinite;
+        }
+
+        /* ── Eyes ─────────────────────────────────────────── */
+        .eyes {
+            position:absolute; top:65px; left:50%; transform:translateX(-50%);
+            display:flex; gap:36px; z-index:4;
+        }
+        .eye-wrapper { position:relative; width:28px; height:28px; }
+        .eye {
+            width:28px; height:28px; background:#333;
+            border-radius:50%; position:relative; transition:all 0.3s;
+        }
+        .eye .pupil {
+            position:absolute; top:5px; left:50%; transform:translateX(-50%);
+            width:10px; height:10px; background:#fff; border-radius:50%;
+        }
+        .eye .iris {
+            position:absolute; top:2px; left:50%; transform:translateX(-50%);
+            width:20px; height:20px; background:#4A3728;
+            border-radius:50%; z-index:-1;
+        }
+
+        /* ── Eyebrows ─────────────────────────────────────── */
+        .eyebrows {
+            position:absolute; top:48px; left:50%; transform:translateX(-50%);
+            display:flex; gap:38px; z-index:4;
+        }
+        .eyebrow {
+            width:28px; height:6px; background:#5D4037;
+            border-radius:3px; transition:all 0.3s;
+        }
+
+        /* ── Nose ─────────────────────────────────────────── */
+        .nose {
+            position:absolute; top:88px; left:50%; transform:translateX(-50%);
+            width:8px; height:10px; background:#FFD0A0;
+            border-radius:0 0 4px 4px; z-index:4;
+        }
+
+        /* ── Mouth ─────────────────────────────────────────── */
+        .mouth {
+            position:absolute; bottom:42px; left:50%; transform:translateX(-50%);
+            z-index:4; transition:all 0.3s;
+        }
+
+        /* ── Blush ────────────────────────────────────────── */
+        .blush {
+            position:absolute; top:80px; width:22px; height:14px;
+            background:rgba(255,140,140,0.35); border-radius:50%;
+            opacity:0; transition:opacity 0.3s; z-index:4;
+        }
+        .blush.left { left:18px; }
+        .blush.right { right:18px; }
+
+        /* ── Neck ─────────────────────────────────────────── */
+        .neck {
+            position:absolute; top:200px; left:50%; transform:translateX(-50%);
+            width:40px; height:30px; background:#FFE0BD; z-index:1;
+        }
+
+        /* ── Body ─────────────────────────────────────────── */
+        .body {
+            position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+            width:160px; height:80px; background:var(--primary);
+            border-radius:80px 80px 0 0; z-index:0;
+            transition:background 0.5s;
+        }
+        .body::before {
+            content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+            width:50px; height:20px; background:#FFE0BD;
+            border-radius:0 0 25px 25px;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           Emotion Expressions
+        ═══════════════════════════════════════════════════ */
+        /* Happy */
+        .face.happy { background:#FFF3CD; }
+        .face.happy .eye { height:10px; border-radius:10px 10px 0 0; top:6px; }
+        .face.happy .eye .pupil, .face.happy .eye .iris { display:none; }
+        .face.happy .mouth { width:44px; height:22px; border:3px solid #333; border-top:none; border-radius:0 0 22px 22px; background:transparent; }
+        .face.happy .blush { opacity:1; }
+        .face.happy .eyebrow { transform:rotate(-8deg); }
+        .face.happy .eyebrow:last-child { transform:rotate(8deg); }
+
+        /* Sad */
+        .face.sad { background:#D6EAF8; }
+        .face.sad .eye { height:28px; }
+        .face.sad .eye .pupil { display:none; }
+        .face.sad .tear {
+            position:absolute; bottom:-8px; left:50%; transform:translateX(-50%);
+            width:8px; height:10px; background:#5DADE2;
+            border-radius:50% 50% 50% 50%; animation:tear 2s infinite;
+            display:block; z-index:5;
+        }
+        .face.sad .mouth { width:36px; height:18px; border:3px solid #333; border-bottom:none; border-radius:18px 18px 0 0; background:transparent; }
+        .face.sad .eyebrow { transform:rotate(10deg); margin-top:8px; }
+        .face.sad .eyebrow:last-child { transform:rotate(-10deg); }
+        @keyframes tear { 0%,100%{opacity:0;transform:translateX(-50%) translateY(0);} 50%{opacity:1;transform:translateX(-50%) translateY(14px);} }
+
+        /* Anxious */
+        .face.anxious { background:#FDEBD0; }
+        .face.anxious .eye { width:24px; height:24px; animation:blink-fast 1s infinite; }
+        .face.anxious .mouth { width:18px; height:18px; border:3px solid #333; border-radius:50%; background:transparent; }
+        .face.anxious .eyebrow { transform:rotate(-12deg); }
+        .face.anxious .eyebrow:last-child { transform:rotate(12deg); }
+        @keyframes blink-fast { 0%,90%,100%{transform:scaleY(1);} 95%{transform:scaleY(0.1);} }
+
+        /* Angry */
+        .face.angry { background:#FADBD8; }
+        .face.angry .eye { height:20px; width:22px; }
+        .face.angry .eye .iris { background:#333; }
+        .face.angry .mouth { width:40px; height:5px; background:#333; border-radius:3px; }
+        .face.angry .eyebrow { transform:rotate(18deg); background:#C0392B; }
+        .face.angry .eyebrow:last-child { transform:rotate(-18deg); }
+
+        /* Neutral */
+        .face.neutral .mouth { width:36px; height:0; border-top:3px solid #333; border-radius:0; background:transparent; }
+
+        /* Float animation */
+        @keyframes float { 0%,100%{transform:translateX(-50%) translateY(0);} 50%{transform:translateX(-50%) translateY(-6px);} }
+
+        /* ── Emotion Stats Panel ──────────────────────────── */
+        .stats-panel {
+            width:100%; margin-top:20px; padding:12px 16px;
+            background:rgba(0,0,0,0.03); border-radius:12px;
+        }
+        .stats-panel .stats-title { font-size:12px; color:var(--text-light); margin-bottom:8px; text-align:center; }
+        .stat-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; }
+        .stat-row .stat-label { width:50px; text-align:right; color:var(--text-light); }
+        .stat-bar-bg { flex:1; height:10px; background:#eee; border-radius:5px; overflow:hidden; }
+        .stat-bar { height:100%; border-radius:5px; transition:width 0.5s; }
+        .stat-row .stat-pct { width:36px; font-size:11px; color:var(--text-light); }
+
+        /* ── Chat Panel ───────────────────────────────────── */
+        .chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
+        .messages { flex:1; overflow-y:auto; padding:20px 24px; }
+        .msg { display:flex; margin-bottom:16px; animation:fadeIn 0.3s; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+        .msg.user { justify-content:flex-end; }
+        .msg .bubble {
+            max-width:70%; padding:12px 16px; border-radius:16px;
+            font-size:14px; line-height:1.6; word-break:break-word;
+        }
+        .msg.assistant .bubble {
+            background:var(--card); border:1px solid #eee;
+            border-radius:16px 16px 16px 4px; box-shadow:0 2px 8px rgba(0,0,0,0.04);
+        }
+        .msg.user .bubble { background:var(--primary); color:#fff; border-radius:16px 16px 4px 16px; }
+        .msg .emotion-tag { font-size:11px; color:var(--text-light); margin-top:4px; }
+
+        /* Welcome */
+        .welcome { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-light); text-align:center; padding:40px; }
+        .welcome h3 { font-size:20px; color:var(--text); margin-bottom:8px; }
+        .welcome p { font-size:14px; line-height:1.8; }
+
+        /* ── Input Area ───────────────────────────────────── */
+        .input-area { padding:16px 24px; background:var(--card); border-top:1px solid #eee; display:flex; gap:12px; align-items:flex-end; }
+        .input-wrapper { flex:1; position:relative; }
+        .input-wrapper textarea {
+            width:100%; min-height:44px; max-height:120px; padding:10px 14px;
+            border:2px solid #e0e0e0; border-radius:12px; font-size:14px;
+            resize:none; outline:none; font-family:inherit; transition:border-color 0.2s;
+        }
+        .input-wrapper textarea:focus { border-color:var(--primary); }
+        .send-btn, .voice-btn {
+            width:44px; height:44px; border-radius:12px; border:none;
+            cursor:pointer; font-size:18px; display:flex; align-items:center;
+            justify-content:center; transition:all 0.2s; flex-shrink:0;
+        }
+        .send-btn { background:var(--primary); color:#fff; }
+        .send-btn:hover { background:var(--primary-light); }
+        .send-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .voice-btn { background:#f0f0f0; color:#666; }
+        .voice-btn:hover { background:#e0e0e0; }
+        .voice-btn.recording { background:#ff4444; color:#fff; animation:pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,68,68,0.4);} 50%{box-shadow:0 0 0 10px rgba(255,68,68,0);} }
+
+        /* ── Typing indicator ─────────────────────────────── */
+        .typing-indicator { display:flex; gap:4px; padding:12px 16px; }
+        .typing-indicator span { width:8px; height:8px; background:#ccc; border-radius:50%; animation:typing 1.4s infinite; }
+        .typing-indicator span:nth-child(2) { animation-delay:0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay:0.4s; }
+        @keyframes typing { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-8px);} }
+
+        /* ── Scrollbar ────────────────────────────────────── */
+        ::-webkit-scrollbar { width:6px; }
+        ::-webkit-scrollbar-thumb { background:#ccc; border-radius:3px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+
+        /* ── Toast ────────────────────────────────────────── */
+        .toast {
+            position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-100px);
+            background:#ff4444; color:#fff; padding:12px 24px; border-radius:12px;
+            font-size:14px; z-index:999; transition:transform 0.3s;
+            box-shadow:0 4px 16px rgba(0,0,0,0.2);
+        }
+        .toast.show { transform:translateX(-50%) translateY(0); }
+    </style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>情感陪护</h2>
+            <p>AI虚拟数字人陪伴系统</p>
+        </div>
+        <button class="new-chat-btn" onclick="newConversation()">+ 新对话</button>
+        <div class="conv-list" id="convList"></div>
+        <div class="sidebar-settings">
+            <label>虚拟人性格</label>
+            <div class="persona-row">
+                <button class="persona-btn active" data-persona="gentle" onclick="setPersona('gentle')">温柔</button>
+                <button class="persona-btn" data-persona="lively" onclick="setPersona('lively')">活泼</button>
+                <button class="persona-btn" data-persona="calm" onclick="setPersona('calm')">沉稳</button>
+            </div>
+            <input class="nickname-input" id="nicknameInput" placeholder="你的昵称..."
+                   onchange="saveNickname()" maxlength="20">
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main-area">
+        <div class="top-bar">
+            <span id="convTitle" style="font-weight:600;">新对话</span>
+            <span class="emotion-badge" id="emotionBadge" style="display:none;"></span>
+            <button class="export-btn" onclick="exportChat()" title="导出对话记录">导出记录</button>
+        </div>
+
+        <div class="chat-content">
+            <!-- Virtual Human -->
+            <div class="avatar-panel" id="avatarPanel">
+                <div class="character" id="character">
+                    <!-- Hair -->
+                    <div class="hair"></div>
+                    <div class="bangs"></div>
+                    <!-- Ears -->
+                    <div class="ear left"></div>
+                    <div class="ear right"></div>
+                    <!-- Face -->
+                    <div class="face neutral" id="face">
+                        <div class="eyebrows">
+                            <div class="eyebrow"></div>
+                            <div class="eyebrow"></div>
+                        </div>
+                        <div class="eyes">
+                            <div class="eye-wrapper">
+                                <div class="eye">
+                                    <div class="iris"></div>
+                                    <div class="pupil"></div>
+                                </div>
+                                <div class="tear" style="display:none;"></div>
+                            </div>
+                            <div class="eye-wrapper">
+                                <div class="eye">
+                                    <div class="iris"></div>
+                                    <div class="pupil"></div>
+                                </div>
+                                <div class="tear" style="display:none;"></div>
+                            </div>
+                        </div>
+                        <div class="nose"></div>
+                        <div class="blush left"></div>
+                        <div class="blush right"></div>
+                        <div class="mouth"></div>
+                    </div>
+                    <!-- Neck & Body -->
+                    <div class="neck"></div>
+                    <div class="body" id="body"></div>
+                </div>
+                <div class="emotion-label" id="emotionLabel">中性</div>
+                <div class="persona-name" id="personaName">温柔小伴</div>
+
+                <!-- Emotion Statistics -->
+                <div class="stats-panel" id="statsPanel" style="display:none;">
+                    <div class="stats-title">情绪分布统计</div>
+                    <div id="statsContent"></div>
+                </div>
+            </div>
+
+            <!-- Chat -->
+            <div class="chat-panel">
+                <div class="messages" id="messages">
+                    <div class="welcome">
+                        <h3>你好呀！</h3>
+                        <p>我是你的情感陪护虚拟人<br>
+                           无论开心还是难过，我都在这里倾听你<br>
+                           试着和我说说话吧～</p>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()"
+                            title="语音输入">🎤</button>
+                    <div class="input-wrapper">
+                        <textarea id="msgInput" placeholder="输入你想说的话..."
+                                  rows="1" onkeydown="handleKey(event)"></textarea>
+                    </div>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()"
+                            title="发送">➤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── State ────────────────────────────────────────────────────────
+    let currentConvId = null;
+    let currentEmotion = "neutral";
+    let isRecording = false;
+    let recognition = null;
+
+    const EMOTION_LABELS = {
+        happy:    "😊 开心",
+        sad:      "😢 难过",
+        anxious:  "😰 焦虑",
+        angry:    "😡 愤怒",
+        neutral:  "😐 中性",
+    };
+
+    const EMOTION_COLORS = {
+        happy:    "#FFF3CD",
+        sad:      "#D6EAF8",
+        anxious:  "#FDEBD0",
+        angry:    "#FADBD8",
+        neutral:  "#F5F5F5",
+    };
+
+    const EMOTION_BAR_COLORS = {
+        happy:    "#FFD700",
+        sad:      "#5DADE2",
+        anxious:  "#F39C12",
+        angry:    "#E74C3C",
+        neutral:  "#BDC3C7",
+    };
+
+    // ── Init ─────────────────────────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", () => {
+        loadConversations();
+        loadSettings();
+        autoResize();
+    });
+
+    // ── API helpers ──────────────────────────────────────────────────
+    async function api(url, method, body) {
+        method = method || "GET";
+        const opts = { method:method, headers:{"Content-Type":"application/json"} };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(url, opts);
+        return res.json();
+    }
+
+    // ── Settings ─────────────────────────────────────────────────────
+    async function loadSettings() {
+        const data = await api("/api/settings");
+        if (data.ok && data.user) {
+            document.getElementById("nicknameInput").value =
+                data.user.nickname === "同学" ? "" : data.user.nickname;
+            setPersona(data.user.persona || "gentle", false);
+        }
+    }
+
+    function setPersona(key, save) {
+        save = save !== false;
+        document.querySelectorAll(".persona-btn").forEach(function(b) {
+            b.classList.toggle("active", b.dataset.persona === key);
+        });
+        var names = {gentle:"温柔小伴", lively:"活泼小伴", calm:"沉稳小伴"};
+        document.getElementById("personaName").textContent = names[key] || "温柔小伴";
+        if (save) api("/api/settings", "POST", {persona:key});
+    }
+
+    function saveNickname() {
+        var nick = document.getElementById("nicknameInput").value.trim();
+        if (nick) api("/api/settings", "POST", {nickname:nick});
+    }
+
+    // ── Conversations ────────────────────────────────────────────────
+    async function loadConversations() {
+        var data = await api("/api/conversations");
+        var list = document.getElementById("convList");
+        list.innerHTML = "";
+        if (data.ok && data.conversations) {
+            data.conversations.forEach(function(c) {
+                var el = document.createElement("div");
+                el.className = "conv-item" + (c.id === currentConvId ? " active" : "");
+                el.innerHTML = '<span class="title">' + c.title + '</span>' +
+                    '<button class="del-btn" onclick="event.stopPropagation();delConv(\'' + c.id + '\')">&times;</button>';
+                el.onclick = function() { openConversation(c.id); };
+                list.appendChild(el);
+            });
+        }
+    }
+
+    async function newConversation() {
+        var data = await api("/api/conversations", "POST");
+        if (data.ok) {
+            currentConvId = data.id;
+            document.getElementById("messages").innerHTML =
+                '<div class="welcome"><h3>你好呀！</h3>' +
+                '<p>我是你的情感陪护虚拟人<br>无论开心还是难过，我都在这里倾听你<br>试着和我说说话吧～</p></div>';
+            document.getElementById("convTitle").textContent = "新对话";
+            resetEmotion();
+            loadConversations();
+        }
+    }
+
+    async function openConversation(cid) {
+        currentConvId = cid;
+        var data = await api("/api/conversations/" + cid + "/messages");
+        var msgs = document.getElementById("messages");
+        msgs.innerHTML = "";
+        if (data.ok && data.messages.length > 0) {
+            data.messages.forEach(function(m) { appendMessage(m.role, m.content, m.emotion, false); });
+            document.getElementById("convTitle").textContent =
+                (data.messages[0] && data.messages[0].content) ? data.messages[0].content.substring(0, 20) : "对话";
+        }
+        loadConversations();
+        scrollToBottom();
+    }
+
+    async function delConv(cid) {
+        await api("/api/conversations/" + cid, "DELETE");
+        if (currentConvId === cid) { currentConvId = null; newConversation(); }
+        loadConversations();
+    }
+
+    // ── Chat ─────────────────────────────────────────────────────────
+    async function sendMessage() {
+        var input = document.getElementById("msgInput");
+        var text = input.value.trim();
+        if (!text) return;
+
+        input.value = "";
+        autoResize();
+        appendMessage("user", text, null);
+        showTyping();
+
+        try {
+            var data = await api("/api/chat", "POST", {
+                message: text,
+                conversation_id: currentConvId,
+            });
+            hideTyping();
+
+            if (data.ok) {
+                if (!currentConvId) {
+                    currentConvId = data.conversation_id;
+                    loadConversations();
+                }
+                appendMessage("assistant", data.reply, data.emotion);
+                updateEmotion(data.emotion);
+                loadStats();
+            } else {
+                showToast(data.error || "发送失败");
+            }
+        } catch (e) {
+            hideTyping();
+            showToast("网络异常，请检查API配置");
+            appendMessage("assistant", "抱歉，我现在无法连接到大脑，请检查网络或API配置后重试～", "neutral");
+        }
+    }
+
+    function appendMessage(role, content, emotion, scroll) {
+        scroll = scroll !== false;
+        var msgs = document.getElementById("messages");
+        var welcome = msgs.querySelector(".welcome");
+        if (welcome) welcome.remove();
+
+        var div = document.createElement("div");
+        div.className = "msg " + role;
+        var emotionTag = "";
+        if (role === "assistant" && emotion) {
+            emotionTag = '<div class="emotion-tag">' + (EMOTION_LABELS[emotion] || emotion) + '</div>';
+        }
+        div.innerHTML = '<div class="bubble">' + escapeHtml(content) + emotionTag + '</div>';
+        msgs.appendChild(div);
+        if (scroll) scrollToBottom();
+    }
+
+    function showTyping() {
+        var msgs = document.getElementById("messages");
+        var div = document.createElement("div");
+        div.className = "msg assistant";
+        div.id = "typingMsg";
+        div.innerHTML = '<div class="bubble"><div class="typing-indicator">' +
+            '<span></span><span></span><span></span></div></div>';
+        msgs.appendChild(div);
+        scrollToBottom();
+    }
+
+    function hideTyping() {
+        var el = document.getElementById("typingMsg");
+        if (el) el.remove();
+    }
+
+    // ── Emotion display ──────────────────────────────────────────────
+    function updateEmotion(emotion) {
+        currentEmotion = emotion;
+        var face = document.getElementById("face");
+        face.className = "face " + emotion;
+
+        // Show/hide tears for sad emotion
+        var tears = document.querySelectorAll(".tear");
+        tears.forEach(function(t) { t.style.display = emotion === "sad" ? "block" : "none"; });
+
+        // Body color changes with emotion
+        var body = document.getElementById("body");
+        var bodyColors = {
+            happy:"#6C63FF", sad:"#5D8AA8", anxious:"#E67E22", angry:"#C0392B", neutral:"#6C63FF"
+        };
+        body.style.background = bodyColors[emotion] || "#6C63FF";
+
+        document.getElementById("emotionLabel").textContent =
+            EMOTION_LABELS[emotion] || emotion;
+
+        var badge = document.getElementById("emotionBadge");
+        badge.style.display = "inline-flex";
+        badge.textContent = EMOTION_LABELS[emotion] || emotion;
+        badge.style.background = EMOTION_COLORS[emotion] || "#f0f0f0";
+
+        document.getElementById("avatarPanel").style.background =
+            EMOTION_COLORS[emotion] || "#fff";
+    }
+
+    function resetEmotion() { updateEmotion("neutral"); }
+
+    // ── Emotion Statistics ───────────────────────────────────────────
+    async function loadStats() {
+        try {
+            var data = await api("/api/stats");
+            if (!data.ok || !data.stats || Object.keys(data.stats).length === 0) return;
+
+            var panel = document.getElementById("statsPanel");
+            var content = document.getElementById("statsContent");
+            panel.style.display = "block";
+            content.innerHTML = "";
+
+            var order = ["happy","sad","anxious","angry","neutral"];
+            var labels = {happy:"开心", sad:"难过", anxious:"焦虑", angry:"愤怒", neutral:"中性"};
+
+            order.forEach(function(emo) {
+                var pct = data.percentages[emo] || 0;
+                if (pct === 0 && !data.stats[emo]) return;
+                var row = document.createElement("div");
+                row.className = "stat-row";
+                row.innerHTML =
+                    '<span class="stat-label">' + (labels[emo] || emo) + '</span>' +
+                    '<div class="stat-bar-bg"><div class="stat-bar" style="width:' + pct + '%;background:' +
+                    (EMOTION_BAR_COLORS[emo] || "#ccc") + ';"></div></div>' +
+                    '<span class="stat-pct">' + pct + '%</span>';
+                content.appendChild(row);
+            });
+        } catch(e) { /* ignore stats errors */ }
+    }
+
+    // ── Export conversation ──────────────────────────────────────────
+    function exportChat() {
+        if (!currentConvId) {
+            showToast("请先开始一段对话");
+            return;
+        }
+        window.open("/api/conversations/" + currentConvId + "/export", "_blank");
+    }
+
+    // ── Voice input (Web Speech API) ─────────────────────────────────
+    function toggleVoice() {
+        if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+            showToast("您的浏览器不支持语音输入");
+            return;
+        }
+        var btn = document.getElementById("voiceBtn");
+        if (isRecording) {
+            recognition.stop();
+            btn.classList.remove("recording");
+            isRecording = false;
+            return;
+        }
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = "zh-CN";
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.onresult = function(e) {
+            var text = e.results[0][0].transcript;
+            document.getElementById("msgInput").value = text;
+            sendMessage();
+        };
+        recognition.onerror = function() {
+            btn.classList.remove("recording");
+            isRecording = false;
+            showToast("语音识别失败");
+        };
+        recognition.onend = function() {
+            btn.classList.remove("recording");
+            isRecording = false;
+        };
+        recognition.start();
+        btn.classList.add("recording");
+        isRecording = true;
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    function handleKey(e) {
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    }
+
+    function autoResize() {
+        var ta = document.getElementById("msgInput");
+        ta.addEventListener("input", function() {
+            ta.style.height = "auto";
+            ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+        });
+    }
+
+    function scrollToBottom() {
+        var msgs = document.getElementById("messages");
+        requestAnimationFrame(function() { msgs.scrollTop = msgs.scrollHeight; });
+    }
+
+    function escapeHtml(text) {
+        var d = document.createElement("div");
+        d.textContent = text;
+        return d.innerHTML.replace(/\n/g, "<br>");
+    }
+
+    function showToast(msg) {
+        var t = document.getElementById("toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        setTimeout(function() { t.classList.remove("show"); }, 3000);
+    }
+</script>
+</body>
+</html>
